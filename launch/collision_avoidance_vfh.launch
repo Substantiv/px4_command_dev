@@ -1,0 +1,5 @@
+<launch>
+	<!-- run the position_control.cpp -->
+	<node pkg="px4_command" type="collision_avoidance_vfh_node" name="collision_avoidance_vfh_node"  output="screen"/>
+	</node>
+</launch>
