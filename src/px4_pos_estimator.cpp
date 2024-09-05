@@ -68,21 +68,21 @@ float noise_a,noise_b;
 float noise_T;
 rigidbody_state UAVstate;
 //---------------------------------------vision vio定位相关------------------------------------------
-Eigen::Vector3d pos_drone_vio;                          //无人机当前位置 (vision)
+Eigen::Vector3d pos_drone_vio;                           //无人机当前位置 (vision)
 Eigen::Quaterniond q_vio;
-Eigen::Vector3d Euler_vio;                              //无人机当前姿态 (vision)
+Eigen::Vector3d Euler_vio;                               //无人机当前姿态 (vision)
 //---------------------------------------laser定位相关------------------------------------------
 Eigen::Vector3d pos_drone_laser;                          //无人机当前位置 (laser)
 Eigen::Quaterniond q_laser;
-Eigen::Vector3d Euler_laser;                                         //无人机当前姿态(laser)
+Eigen::Vector3d Euler_laser;                              //无人机当前姿态(laser)
 
-geometry_msgs::TransformStamped laser;                          //当前时刻cartorgrapher发布的数据
+geometry_msgs::TransformStamped laser;                    //当前时刻cartorgrapher发布的数据
 geometry_msgs::TransformStamped laser_last;
 //---------------------------------------无人机位置及速度--------------------------------------------
 Eigen::Vector3d pos_drone_fcu;                           //无人机当前位置 (来自fcu)
 Eigen::Vector3d vel_drone_fcu;                           //无人机上一时刻位置 (来自fcu)
-Eigen::Vector3d Att_fcu;                               //无人机当前欧拉角(来自fcu)
-Eigen::Vector3d Att_rate_fcu;
+Eigen::Vector3d Att_fcu;                                 //无人机当前欧拉角(来自fcu)
+Eigen::Vector3d Att_rate_fcu;                            //无人机当前角速度
 //---------------------------------------发布相关变量--------------------------------------------
 ros::Publisher vision_pub;
 ros::Publisher drone_state_pub;
@@ -132,10 +132,7 @@ void vision_cb(const geometry_msgs::PoseStamped::ConstPtr& msg)
 	pos_drone_vio[0] = vision_pose.pose.position.x;
 	pos_drone_vio[1] = vision_pose.pose.position.y;
 	pos_drone_vio[2] = vision_pose.pose.position.z;
-
-
-	
-
+    
 	q_vio.x() = vision_pose.pose.orientation.x;
 	q_vio.y() = vision_pose.pose.orientation.y;
 	q_vio.z() = vision_pose.pose.orientation.z;
@@ -152,7 +149,7 @@ void sonic_cb(const std_msgs::UInt16::ConstPtr& msg)
 
     sonic = *msg;
 
-    //位置
+    // z方向位置
     pos_drone_laser[2]  = (float)sonic.data / 1000;
 }
 
@@ -177,7 +174,6 @@ double vrt_h_map(const double& tfmini_raw,const double& roll,const double& pitch
     //ROS_INFO_STREAM("vrth:" << vrt_h << endl);
 
     return vrt_h;
-
 }
 
 
@@ -197,7 +193,7 @@ int main(int argc, char **argv)
     // window for linear velocity
     nh.param<int>("pos_estimator/linear_window", linear_window, 3);
 
-    // window for linear velocity
+    // window for angular velocity
     nh.param<int>("pos_estimator/angular_window", angular_window, 3);
 
     nh.param<float>("pos_estimator/noise_a", noise_a, 0.0);
@@ -233,7 +229,9 @@ int main(int argc, char **argv)
 
 
     // 【发布】无人机位置和偏航角 坐标系 ENU系
-    //  本话题要发送飞控(通过mavros_extras/src/plugins/vision_pose_estimate.cpp发送), 对应Mavlink消息为VISION_POSITION_ESTIMATE(#??), 对应的飞控中的uORB消息为vehicle_vision_position.msg 及 vehicle_vision_attitude.msg
+    //  本话题要发送飞控(通过mavros_extras/src/plugins/vision_pose_estimate.cpp发送), 
+    //  对应Mavlink消息为VISION_POSITION_ESTIMATE(#??)
+    //  对应的飞控中的uORB消息为vehicle_vision_position.msg 及 vehicle_vision_attitude.msg
     vision_pub = nh.advertise<geometry_msgs::PoseStamped>("/mavros/vision_pose/pose", 100);
 
     drone_state_pub = nh.advertise<px4_command::DroneState>("/px4_command/drone_state", 10);
@@ -255,7 +253,7 @@ int main(int argc, char **argv)
         // 将定位信息及偏航角信息发送至飞控，根据参数flag_use_laser_or_vicon选择定位信息来源
         send_to_fcu();
 
-        //利用OptiTrackFeedBackRigidBody类获取optitrack的数据 -- for test -code by longhao
+        //利用OptiTrackFeedBackRigidBody类获取optitrack的数据
         UAV.RosWhileLoopRun();
         UAV.GetState(UAVstate);
 
@@ -291,9 +289,7 @@ int main(int argc, char **argv)
             _DroneState.velocity[i] = _DroneState.velocity[i] + random[i];
         }
 
-        //cout << "Random [X Y Z] : " << random[0]<<" " << random[1]<<" "<< random[2]<<endl;
-        
-                
+
         // 根据Use_mocap_raw来选择位置和速度的来源
         if (Use_mocap_raw == 1)
         {
