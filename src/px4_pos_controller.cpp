@@ -49,27 +49,28 @@ px4_command::ControlCommand Command_to_gs;                    //发送至地面�
 px4_command::DroneState _DroneState;                          //无人机状态量
 Eigen::Vector3d throttle_sp;
 px4_command::ControlOutput _ControlOutput;
-px4_command::AttitudeReference _AttitudeReference;           //位置控制器输出，即姿态环参考量
-float cur_time;
-px4_command::Topic_for_log _Topic_for_log;                  //用于日志记录的topic
+px4_command::AttitudeReference _AttitudeReference;            //位置控制器输出，即姿态环参考量
+float cur_time;                                               //当前时间
+px4_command::Topic_for_log _Topic_for_log;                    //用于日志记录的topic
 
-float Takeoff_height;                                       //起飞高度
-float Disarm_height;                                        //自动上锁高度
-float Use_accel;                                            // 1 for use the accel command
-int Flag_printf;
+float Takeoff_height;                                         //起飞高度
+float Disarm_height;                                          //自动上锁高度
+float Use_accel;                                              //1 for use the accel command
+int Flag_printf;                                              //是否打印输出
 
+// 干扰生成相关的参数
+float disturbance_a_xy,disturbance_b_xy;                      //xy平面干扰生成参数
+float disturbance_a_z,disturbance_b_z;                        //高度z干扰生成参数
+float disturbance_T;                                          //低通滤波器的时间常数
+float disturbance_start_time;                                 //干扰开始时间
+float disturbance_end_time;                                   //干扰结束时间
 
-float disturbance_a_xy,disturbance_b_xy;
-float disturbance_a_z,disturbance_b_z;
-float disturbance_T;
-float disturbance_start_time;
-float disturbance_end_time;
 // For PPN landing - Silas
 Eigen::Vector3d pos_des_prev;
 Eigen::Vector3d vel_command;
 float ppn_kx;
 float ppn_ky;
-float ppn_kz;//0.01;
+float ppn_kz;
 
 //变量声明 - 其他变量
 //Geigraphical fence 地理围栏
@@ -164,18 +165,19 @@ int main(int argc, char **argv)
     // 用于与mavros通讯的类，通过mavros发送控制指令至飞控【本程序->mavros->飞控】
     command_to_mavros _command_to_mavros;
     
-    // 位置控制类 - 根据switch_ude选择其中一个使用，默认为PID
-    pos_controller_cascade_PID pos_controller_cascade_pid;
-    pos_controller_PID pos_controller_pid;
-    pos_controller_UDE pos_controller_ude;
-    pos_controller_passivity pos_controller_ps;
-    pos_controller_NE pos_controller_ne;
+    // 位置控制类 - 根据switch_ude选择其中一个使用，默认为串级PID控制
+    pos_controller_cascade_PID pos_controller_cascade_pid;  // 串级PID控制
+    pos_controller_PID         pos_controller_pid;          // PID控制
+    pos_controller_UDE         pos_controller_ude;          // 干扰不确定估计器
+    pos_controller_passivity   pos_controller_ps;
+    pos_controller_NE          pos_controller_ne;
 
     // 选择控制律
     int switch_ude;
- //   cout << "Please choose the controller: 0 for cascade_PID, 1 for PID, 2 for UDE, 3 for passivity, 4 for NE: "<<endl;
-//    cin >> switch_ude;
-	switch_ude = 0;
+    switch_ude = 0;
+    // cout << "Please choose the controller: 0 for cascade_PID, 1 for PID, 2 for UDE, 3 for passivity, 4 for NE: "<<endl;
+    // cin >> switch_ude;
+
     if(switch_ude == 0)
     {
         pos_controller_cascade_pid.printf_param();
@@ -196,7 +198,7 @@ int main(int argc, char **argv)
     // 圆形轨迹追踪类
     Circle_Trajectory _Circle_Trajectory;
     float time_trajectory = 0.0;
- //   _Circle_Trajectory.printf_param();
+//    _Circle_Trajectory.printf_param();
 
     printf_param();
 
@@ -212,7 +214,7 @@ int main(int argc, char **argv)
     }
 
     // 先读取一些飞控的数据
-    for(int i=0;i<50;i++)
+    for(int i=0; i<50; i++)
     {
         ros::spinOnce();
         rate.sleep();
@@ -249,6 +251,7 @@ int main(int argc, char **argv)
     ros::Time begin_time = ros::Time::now();
     float last_time = px4_command_utils::get_time_in_sec(begin_time);
     float dt = 0;
+
 //>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>主  循  环<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
     while(ros::ok())
     {
@@ -301,17 +304,21 @@ int main(int argc, char **argv)
                 _ControlOutput = pos_controller_ne.pos_controller(_DroneState, Command_to_gs.Reference_State, dt);
             }
             
+            // 位置控制器输出为xyz轴对应的推力控制指令[0,1]
             throttle_sp[0] = _ControlOutput.Throttle[0];
             throttle_sp[1] = _ControlOutput.Throttle[1];
             throttle_sp[2] = _ControlOutput.Throttle[2];
 
+            // 将期望推力转换为期望姿态
             _AttitudeReference = px4_command_utils::ThrottleToAttitude(throttle_sp, Command_to_gs.Reference_State.yaw_ref);
 
             if(Use_accel > 0.5)
             {
+                // 发送加速度期望值至飞控
                 _command_to_mavros.send_accel_setpoint(throttle_sp,Command_to_gs.Reference_State.yaw_ref);
             }else
             {
+                // 发送角度期望值至飞控
                 _command_to_mavros.send_attitude_setpoint(_AttitudeReference);            
             }
             
@@ -407,7 +414,6 @@ int main(int argc, char **argv)
                 Command_to_gs.Reference_State.acceleration_ref[0] = d_acc_enu[0];
                 Command_to_gs.Reference_State.acceleration_ref[1] = d_acc_enu[1];
                 Command_to_gs.Reference_State.acceleration_ref[2] = Command_Now.Reference_State.acceleration_ref[2];
-
             }
 
             if(switch_ude == 0)

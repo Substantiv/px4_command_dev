@@ -281,16 +281,13 @@ px4_command::AttitudeReference ThrottleToAttitude(const Eigen::Vector3d& thr_sp,
     Eigen::Vector3d att_sp;
     att_sp[2] = yaw_sp;
 
-    // desired body_z axis = -normalize(thrust_vector)
+    /* 归一化推力 */
     Eigen::Vector3d body_x, body_y, body_z;
 
+    // 计算无人机在空间中z轴朝向body_z
     double thr_sp_length = thr_sp.norm();
-
-    //cout << "thr_sp_length : "<< thr_sp_length << endl;
-
     if (thr_sp_length > 0.00001f) {
             body_z = thr_sp.normalized();
-
     } else {
             // no thrust, set Z axis to safe value
             body_z = Eigen::Vector3d(0.0f, 0.0f, 1.0f);
@@ -333,12 +330,12 @@ px4_command::AttitudeReference ThrottleToAttitude(const Eigen::Vector3d& thr_sp,
 
     rotation_to_euler(R_sp, att_sp);
 
-    //cout << "Desired euler [R P Y]: "<< att_sp[0]* 180/M_PI <<" [deg] " << att_sp[1]* 180/M_PI <<" [deg] "<< att_sp[2]* 180/M_PI <<" [deg] "<< endl;
-    //cout << "Desired Thrust: "<< thr_sp_length<< endl;
-//    cout << "q_sp [x y z w]: "<< q_sp.x() <<" [ ] " << q_sp.y() <<" [ ] "<<q_sp.z() <<" [ ] "<<q_sp.w() <<" [ ] "<<endl;
-//    cout << "R_sp : "<< R_sp(0, 0) <<" " << R_sp(0, 1) <<" "<< R_sp(0, 2) << endl;
-//    cout << "     : "<< R_sp(1, 0) <<" " << R_sp(1, 1) <<" "<< R_sp(1, 2) << endl;
-//    cout << "     : "<< R_sp(2, 0) <<" " << R_sp(2, 1) <<" "<< R_sp(2, 2) << endl;
+    // cout << "Desired euler [R P Y]: "<< att_sp[0]* 180/M_PI <<" [deg] " << att_sp[1]* 180/M_PI <<" [deg] "<< att_sp[2]* 180/M_PI <<" [deg] "<< endl;
+    // cout << "Desired Thrust: "<< thr_sp_length<< endl;
+    // cout << "q_sp [x y z w]: "<< q_sp.x() <<" [ ] " << q_sp.y() <<" [ ] "<<q_sp.z() <<" [ ] "<<q_sp.w() <<" [ ] "<<endl;
+    // cout << "R_sp : "<< R_sp(0, 0) <<" " << R_sp(0, 1) <<" "<< R_sp(0, 2) << endl;
+    // cout << "     : "<< R_sp(1, 0) <<" " << R_sp(1, 1) <<" "<< R_sp(1, 2) << endl;
+    // cout << "     : "<< R_sp(2, 0) <<" " << R_sp(2, 1) <<" "<< R_sp(2, 2) << endl;
 
 
     _AttitudeReference.throttle_sp[0] = thr_sp[0];
